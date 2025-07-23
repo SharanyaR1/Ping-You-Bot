@@ -8,43 +8,85 @@ subscription_collection = db["user_subscriptions"]
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         "👋 *Welcome to PingYou Bot!*\n\n"
-        "🔔 *What I do:* Monitor groups and alert you when your keywords are mentioned.\n\n"
-        "✨ *Main Commands:*\n"
-        "/groups - View and manage your groups\n"
-        "/use - Select a group to manage keywords\n"
-        "/add - Add keywords to track\n"
-        "/remove - Remove keywords\n"
-        "/keywords - View all your tracked keywords\n\n"
-        "🛠️ Type /help for full command list"
+        "I help you stay updated by alerting you when your keywords are mentioned in Telegram groups.\n\n"
+        "🚀 *Quick Start:*\n"
+        "1. *Add me to the group* where you want keyword alerts\n"
+        "2.  Use /groups to see available groups and subscribe\n"
+        "3.  Click on the group to track keywords (you can also mute or stop tracking keywords anytime)\n"
+        "4.  Add keywords using /add (comma-separated to add multiple keywords: `/add job,intern,remote`)\n"
+        "5.  Get notified whenever your keywords are mentioned!\n\n"
+        "📌 *Note:* Send all commands here in *PingYou Bot private chat*, *not in the group*. \n\n"
+        "ℹ️ *To view all commands and what they do, type /help*"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
     pass
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """
-🛠️ *PingYou Bot Help*
+    🛠️ *PingYou Bot – Help Menu*
 
-*Group Management:*
-/groups - View all groups and your status
-/join - Subscribe to a group
-/mute - Temporarily mute notifications
-/leave - Permanently leave a group
-/reset - Delete ALL your data (careful!)
+    Below is a list of available commands you can use to manage groups and keywords.
 
-*Keyword Management:*
-/use - Select group to manage
-/add - Add keywords (comma-separated)
-/remove - Remove keywords
-/list - Show keywords in current group
-/keywords - View all keywords across groups
-"""
+    🔹 *Group Management:*
+    /groups – View and manage the groups you're tracking  
+    /use – Select a group to manage its keywords  
+    /reset – ⚠️ Delete all your data (groups + keywords)  
+
+    🔹 *Keyword Management:*
+    /add – Add keywords to track (comma-separated to add multiple keywords: `/add job,intern,remote`)  
+    /remove – Remove one or more keywords  
+    /list – View keywords in the currently selected group  
+    /keywords – View all keywords you’re tracking across groups  
+
+    ❗ *Reminder:*  
+    Send all commands *here in the PingYou Bot chat*, *not in any group*.
+    """
+
     await update.message.reply_text(help_text, parse_mode="Markdown")
     pass
 
-MAX_MESSAGE_LENGTH = 390  # Leave buffer under Telegram’s 4096 limit
-KEYWORDS_PER_PAGE = 1      # Number of groups per page
+
+async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Nuclear option to leave all groups and delete all data"""
+    user_id = update.effective_user.id
+    
+    confirm_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("⚠️ CONFIRM RESET ALL", callback_data="confirm_reset")],
+        [InlineKeyboardButton("❌ Cancel", callback_data="cancel_reset")]
+    ])
+    
+    await update.message.reply_text(
+        "🚨 *Danger Zone* 🚨\n\n"
+        "This will:\n"
+        "1. Remove ALL your keywords\n"
+        "2. Unsubscribe from ALL groups\n"
+        "3. Delete ALL your data\n\n"
+        "This cannot be undone!",
+        reply_markup=confirm_keyboard,
+        parse_mode="Markdown"
+    )
+
+async def handle_reset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    
+    if query.data == "confirm_reset":
+        subscription_collection.delete_many({"user_id": user_id})
+        await query.edit_message_text(
+            "🧹 All your data has been completely reset.",
+            parse_mode="Markdown"
+        )
+    else:
+        await query.edit_message_text(
+            "Reset cancelled. Your data is safe.",
+            parse_mode="Markdown"
+        )
 
 async def keywords_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    MAX_MESSAGE_LENGTH = 390  # Leave buffer under Telegram’s 4096 limit
+    KEYWORDS_PER_PAGE = 1      # Number of groups per page
+
     user_id = update.effective_user.id
     page = context.user_data.get("kw_page", 0)
 
@@ -120,41 +162,3 @@ async def handle_keyword_page_nav(update: Update, context: ContextTypes.DEFAULT_
         context.user_data["kw_page"] = page - 1
 
     await keywords_overview(update, context)  # No delete_message
-
-
-async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Nuclear option to leave all groups and delete all data"""
-    user_id = update.effective_user.id
-    
-    confirm_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚠️ CONFIRM RESET ALL", callback_data="confirm_reset")],
-        [InlineKeyboardButton("❌ Cancel", callback_data="cancel_reset")]
-    ])
-    
-    await update.message.reply_text(
-        "🚨 *Danger Zone* 🚨\n\n"
-        "This will:\n"
-        "1. Remove ALL your keywords\n"
-        "2. Unsubscribe from ALL groups\n"
-        "3. Delete ALL your data\n\n"
-        "This cannot be undone!",
-        reply_markup=confirm_keyboard,
-        parse_mode="Markdown"
-    )
-
-async def handle_reset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    
-    if query.data == "confirm_reset":
-        subscription_collection.delete_many({"user_id": user_id})
-        await query.edit_message_text(
-            "🧹 All your data has been completely reset.",
-            parse_mode="Markdown"
-        )
-    else:
-        await query.edit_message_text(
-            "Reset cancelled. Your data is safe.",
-            parse_mode="Markdown"
-        )

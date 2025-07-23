@@ -297,3 +297,4 @@ async def handle_remove_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     elif data == "kw_cancel_remove_all":
         await show_remove_menu(update, context)
+
